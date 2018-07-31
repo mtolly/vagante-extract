@@ -1,1 +1,4 @@
 data.vra
+data/
+*.exe
+.stack-work/
