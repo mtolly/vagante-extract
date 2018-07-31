@@ -46,7 +46,8 @@ extract vra dir = do
     putStrLn $ "Extracting " ++ out
     createDirectoryIfMissing True $ takeDirectory out
     BL.writeFile out file
-  BL.writeFile (dir </> "repack-list.txt") $ BL8.unlines $ map fst files
+  BL.writeFile (dir </> "repack-list.txt") $
+    BL8.intercalate (BL8.pack "\r\n") $ map fst files
 
 main :: IO ()
 main = getArgs >>= \case
@@ -73,7 +74,8 @@ splitFiles = do
 -- | Collects the contents of a directory into a new data.vra.
 archive :: FilePath -> FilePath -> IO ()
 archive dir vra = do
-  files <- lines . BL8.unpack <$> BL.readFile (dir </> "repack-list.txt")
+  files <- filter (/= "") . lines . filter (/= '\r') . BL8.unpack
+    <$> BL.readFile (dir </> "repack-list.txt")
   mapM_ (putStrLn . ("  " ++)) files
   fileContents <- forM files $ \name -> do
     contents <- fmap BL.fromStrict $ B.readFile $ dir </> name
