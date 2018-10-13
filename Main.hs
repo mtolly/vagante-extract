@@ -23,7 +23,7 @@ import Data.Binary.Put
 import System.Directory
 import System.FilePath
 import System.Environment (getArgs)
-import Control.Monad (forM, forM_)
+import Control.Monad (forM, forM_, void)
 import Codec.Compression.Zlib (decompress, compress)
 import Data.Bits (xor)
 
@@ -56,7 +56,12 @@ main = getArgs >>= \case
   [x] -> case splitExtension x of
     (dir, ".vra") -> extract x dir
     _             -> archive x $ x <.> "vra"
-  _ -> error "incorrect usage"
+  _ -> do
+    putStrLn "*** vagante-extract ***"
+    putStrLn "Drag 'data.vra' onto this .exe to extract into 'data'."
+    putStrLn "Then, drag 'data' onto this .exe to repack back into 'data.vra'."
+    putStrLn "(press enter to close)"
+    void getLine
 
 splitFiles :: Get [(BL.ByteString, BL.ByteString)]
 splitFiles = do
@@ -76,7 +81,7 @@ archive :: FilePath -> FilePath -> IO ()
 archive dir vra = do
   files <- filter (/= "") . lines . filter (/= '\r') . BL8.unpack
     <$> BL.readFile (dir </> "repack-list.txt")
-  mapM_ (putStrLn . ("  " ++)) files
+  mapM_ (putStrLn . ("Packing " ++)) files
   fileContents <- forM files $ \name -> do
     contents <- fmap BL.fromStrict $ B.readFile $ dir </> name
     return (BL8.pack name, contents)
