@@ -14,18 +14,19 @@ Last updated for Vagante 1.011.3
 {-# LANGUAGE LambdaCase #-}
 module Main (main) where
 
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.ByteString.Builder as BB
+import           Codec.Compression.Zlib     (compress, decompress)
+import           Control.Monad              (forM, forM_, void)
+import           Data.Binary.Get
+import           Data.Binary.Put
+import           Data.Bits                  (xor)
+import qualified Data.ByteString            as B
+import qualified Data.ByteString.Builder    as BB
+import qualified Data.ByteString.Lazy       as BL
 import qualified Data.ByteString.Lazy.Char8 as BL8
-import Data.Binary.Get
-import Data.Binary.Put
-import System.Directory
-import System.FilePath
-import System.Environment (getArgs)
-import Control.Monad (forM, forM_, void)
-import Codec.Compression.Zlib (decompress, compress)
-import Data.Bits (xor)
+import           System.Directory
+import           System.Environment         (getArgs)
+import           System.FilePath
+import           System.Info                (os)
 
 -- | For each byte where position is divisible by 10799, xor it with 0xE5.
 obfuscate :: BL.ByteString -> BL.ByteString
@@ -55,11 +56,16 @@ main = getArgs >>= \case
   ["archive", dir, vra] -> archive dir vra
   [x] -> case splitExtension x of
     (dir, ".vra") -> extract x dir
-    _             -> archive x $ x <.> "vra"
+    _             -> archive x $ dropTrailingPathSeparator x <.> "vra"
   _ -> do
     putStrLn "*** vagante-extract ***"
-    putStrLn "Drag 'data.vra' onto this .exe to extract into 'data'."
-    putStrLn "Then, drag 'data' onto this .exe to repack back into 'data.vra'."
+    case os of
+      "darwin" -> do
+        putStrLn "Drag 'data.vra' onto 'drop-onto-me' to extract into 'data'."
+        putStrLn "Then, drag 'data' onto 'drop-onto-me' to repack back into 'data.vra'."
+      _ -> do
+        putStrLn "Drag 'data.vra' onto 'vagante-extract.exe' to extract into 'data'."
+        putStrLn "Then, drag 'data' onto 'vagante-extract.exe' to repack back into 'data.vra'."
     putStrLn "(press enter to close)"
     void getLine
 
@@ -89,6 +95,7 @@ archive dir vra = do
     putWord32le 0xED
     putWord16le $ fromIntegral $ length files - 1
     joinFiles fileContents
+  putStrLn $ "Wrote to " ++ vra
 
 joinFiles :: [(BL.ByteString, BL.ByteString)] -> Put
 joinFiles = mapM_ $ \(name, file) -> do
