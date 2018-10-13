@@ -5,6 +5,14 @@ default:
 	@echo "  make win"
 	@echo "  make mac"
 
+win:
+	rm -rf win
+	mkdir win
+	cp app-readme.txt win/readme.txt
+	stack install
+	cp $(shell stack exec which vagante-extract) win
+	strip win/vagante-extract.exe
+
 mac:
 	rm -rf mac
 	mkdir mac
@@ -12,3 +20,4 @@ mac:
 	cp app-readme.txt mac/readme.txt
 	stack install
 	cp $(shell stack exec which vagante-extract) mac
+	strip mac/vagante-extract
