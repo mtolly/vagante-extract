@@ -1,10 +1,11 @@
 {- |
 Extracts files from the game Vagante's data.vra.
-Last updated for Vagante 1.011.3
+Last updated for Vagante 1.02.9
 1. zlib-decompress
 2. every 10799 bytes (starting with byte 0), xor with 0xE5
 3. skip 4 bytes (ED 00 00 00)
-4. next 2 bytes are number of files - 1 (little endian)
+4. next 2 bytes are number of files - 2 (little endian)
+  (this used to be number of files - 1 in Vagante 1.01)
 5. then repeating pattern:
 - length of filename (4 bytes little-endian)
 - filename
@@ -15,6 +16,7 @@ Last updated for Vagante 1.011.3
 module Main (main) where
 
 import           Codec.Compression.Zlib     (compress, decompress)
+import           Control.Applicative        (liftA3)
 import           Control.Monad              (forM, forM_, void)
 import           Data.Binary.Get
 import           Data.Binary.Put
@@ -23,10 +25,13 @@ import qualified Data.ByteString            as B
 import qualified Data.ByteString.Builder    as BB
 import qualified Data.ByteString.Lazy       as BL
 import qualified Data.ByteString.Lazy.Char8 as BL8
+import           Data.List                  (stripPrefix)
+import           Data.Maybe                 (fromMaybe, listToMaybe)
 import           System.Directory
 import           System.Environment         (getArgs)
 import           System.FilePath
 import           System.Info                (os)
+import           Text.Read                  (readMaybe)
 
 -- | For each byte where position is divisible by 10799, xor it with 0xE5.
 obfuscate :: BL.ByteString -> BL.ByteString
@@ -41,14 +46,24 @@ obfuscate = BB.toLazyByteString . go where
 extract :: FilePath -> FilePath -> IO ()
 extract vra dir = do
   bs <- obfuscate . decompress <$> BL.readFile vra
-  let files = runGet splitFiles $ BL.drop 6 bs
+  let (magic, count, files) = flip runGet bs $ liftA3 (,,) getWord32le getWord16le splitFiles
+      len = length files
+      diff = len - fromIntegral count
   forM_ files $ \(name, file) -> do
     let out = dir </> BL8.unpack name
     putStrLn $ "Extracting " ++ out
     createDirectoryIfMissing True $ takeDirectory out
     BL.writeFile out file
-  BL.writeFile (dir </> "repack-list.txt") $
-    BL8.intercalate (BL8.pack "\r\n") $ map fst files
+  putStrLn $ "Magic number: " <> show magic
+  putStrLn $ "Stated file count " <> show count <> ", found " <> show len <> " files"
+  putStrLn $ case diff of
+    2 -> "Likely Vagante 1.02"
+    1 -> "Likely Vagante 1.01 or older"
+    _ -> "Unknown Vagante version"
+  BL.writeFile (dir </> "repack-list.txt") $ BL8.intercalate (BL8.pack "\r\n")
+    $ BL8.pack ("magic " <> show magic)
+    : BL8.pack ("count " <> show count)
+    : map fst files
 
 main :: IO ()
 main = getArgs >>= \case
@@ -85,15 +100,20 @@ splitFiles = do
 -- | Collects the contents of a directory into a new data.vra.
 archive :: FilePath -> FilePath -> IO ()
 archive dir vra = do
-  files <- filter (/= "") . lines . filter (/= '\r') . BL8.unpack
+  repackLines <- filter (/= "") . lines . filter (/= '\r') . BL8.unpack
     <$> BL.readFile (dir </> "repack-list.txt")
+  let oldVersion = (0xED, fromIntegral $ length repackLines - 1, repackLines)
+      (magic, count, files) = fromMaybe oldVersion $ do
+        m <- listToMaybe repackLines          >>= stripPrefix "magic " >>= readMaybe
+        c <- listToMaybe (drop 1 repackLines) >>= stripPrefix "count " >>= readMaybe
+        return (m, c, drop 2 repackLines)
   mapM_ (putStrLn . ("Packing " ++)) files
   fileContents <- forM files $ \name -> do
     contents <- fmap BL.fromStrict $ B.readFile $ dir </> name
     return (BL8.pack name, contents)
   BL.writeFile vra $ compress $ obfuscate $ runPut $ do
-    putWord32le 0xED
-    putWord16le $ fromIntegral $ length files - 1
+    putWord32le magic
+    putWord16le count
     joinFiles fileContents
   putStrLn $ "Wrote to " ++ vra
 

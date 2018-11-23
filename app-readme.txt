@@ -2,7 +2,7 @@ Vagante data.vra extract/repack tool
 Michael Tolly <miketolly@gmail.com>
 https://github.com/mtolly/vagante-extract
 
-Last updated for Vagante 1.011.3, tested on Windows and Mac versions
+Last updated for Vagante 1.02.9, tested on Windows and Mac versions
 
 To use, drag "data.vra" onto "vagante-extract.exe" if on Windows, or "drop-onto-me" if on Mac. A "data" folder will be created.
 

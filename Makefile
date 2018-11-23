@@ -19,5 +19,5 @@ mac:
 	osacompile -o mac/drop-onto-me.app drop-onto-me.applescript
 	cp app-readme.txt mac/readme.txt
 	stack install
-	cp $(shell stack exec which vagante-extract) mac
-	strip mac/vagante-extract
+	cp $(shell stack exec which vagante-extract) mac/drop-onto-me.app/Contents/MacOS/
+	strip mac/drop-onto-me.app/Contents/MacOS/vagante-extract
