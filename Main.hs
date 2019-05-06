@@ -1,6 +1,6 @@
 {- |
 Extracts files from the game Vagante's data.vra.
-Last updated for Vagante 1.042.1 (beta)
+Last updated for Vagante 1.043.0 (beta)
 1. zlib-decompress
 2. skip 4 bytes (08 00 00 00)
 3. next 2 bytes are "number of files - 3" (little endian)
@@ -57,7 +57,7 @@ extract vra dir = do
   putStrLn $ "Magic number: " <> show magic
   putStrLn $ "Stated file count " <> show count <> ", found " <> show len <> " files"
   putStrLn $ case diff of
-    3 -> "Difference matches Vagante 1.042 or similar"
+    3 -> "Difference matches Vagante 1.043 or similar"
     2 -> "Difference matches Vagante 1.02"
     1 -> "Difference matches Vagante 1.01 or older"
     _ -> "Unknown Vagante version"
