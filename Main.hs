@@ -1,12 +1,11 @@
 {- |
 Extracts files from the game Vagante's data.vra.
-Last updated for Vagante 1.02.9
+Last updated for Vagante 1.042.1 (beta)
 1. zlib-decompress
-2. every 10799 bytes (starting with byte 0), xor with 0xE5
-3. skip 4 bytes (ED 00 00 00)
-4. next 2 bytes are number of files - 2 (little endian)
-  (this used to be number of files - 1 in Vagante 1.01)
-5. then repeating pattern:
+2. skip 4 bytes (08 00 00 00)
+3. next 2 bytes are "number of files - 3" (little endian)
+  (used to be "files - 2" in 1.02, and "files - 1" in 1.01)
+4. then repeating pattern:
 - length of filename (4 bytes little-endian)
 - filename
 - length of file data (4 bytes little-endian)
@@ -34,6 +33,7 @@ import           System.Info                (os)
 import           Text.Read                  (readMaybe)
 
 -- | For each byte where position is divisible by 10799, xor it with 0xE5.
+-- This appears to not be used in the format anymore.
 obfuscate :: BL.ByteString -> BL.ByteString
 obfuscate = BB.toLazyByteString . go where
   go bs = if BL.null bs
@@ -45,7 +45,7 @@ obfuscate = BB.toLazyByteString . go where
 -- | Extracts the contents of data.vra into a directory.
 extract :: FilePath -> FilePath -> IO ()
 extract vra dir = do
-  bs <- obfuscate . decompress <$> BL.readFile vra
+  bs <- decompress <$> BL.readFile vra
   let (magic, count, files) = flip runGet bs $ liftA3 (,,) getWord32le getWord16le splitFiles
       len = length files
       diff = len - fromIntegral count
@@ -57,8 +57,9 @@ extract vra dir = do
   putStrLn $ "Magic number: " <> show magic
   putStrLn $ "Stated file count " <> show count <> ", found " <> show len <> " files"
   putStrLn $ case diff of
-    2 -> "Likely Vagante 1.02"
-    1 -> "Likely Vagante 1.01 or older"
+    3 -> "Difference matches Vagante 1.042 or similar"
+    2 -> "Difference matches Vagante 1.02"
+    1 -> "Difference matches Vagante 1.01 or older"
     _ -> "Unknown Vagante version"
   BL.writeFile (dir </> "repack-list.txt") $ BL8.intercalate (BL8.pack "\r\n")
     $ BL8.pack ("magic " <> show magic)
@@ -111,7 +112,7 @@ archive dir vra = do
   fileContents <- forM files $ \name -> do
     contents <- fmap BL.fromStrict $ B.readFile $ dir </> name
     return (BL8.pack name, contents)
-  BL.writeFile vra $ compress $ obfuscate $ runPut $ do
+  BL.writeFile vra $ compress $ runPut $ do
     putWord32le magic
     putWord16le count
     joinFiles fileContents
